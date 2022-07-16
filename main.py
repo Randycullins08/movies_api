@@ -1,9 +1,10 @@
 from flask import request, Flask, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
-from sqlalchemy.dialects.postgresql import UUID
-import uuid
-import marshmallow as mar
+from db import db, init_db
+from models.actors_model import Actors, actor_schema, actors_schema
+from models.directors_model import Directors, director_schema, directors_schema
+from models.movies_model import Movies, movie_schema, movies_schema
 
 app = Flask(__name__)
 
@@ -12,112 +13,45 @@ database_name = "movies"
 app.config['SQLALCHEMY_DATABASE_URI'] = f'postgresql://{database_host}/{database_name}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-db = SQLAlchemy(app)
+init_db(app, db)
 ma = Marshmallow(app)
 
-class Movies(db.Model):
-    __tablename__ = "movies"
-    movie_id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
-    movie_name = db.Column(db.String(), nullable=False)
-    actor_id = db.Column(UUID(as_uuid=True), db.ForeignKey('actors.actor_id'), nullable=False)
-    actor_first_name = db.Column(db.String())
-    actor_last_name = db.Column(db.String())
-    director_id = db.Column(UUID(as_uuid=True), db.ForeignKey('directors.director_id'), nullable=False)
-    director_first_name = db.Column(db.String(), nullable=False)
-    director_last_name = db.Column(db.String(), nullable=False)
-    active = db.Column(db.Boolean(), nullable = False, default = True)
-    actors = db.relationship('Actors', backref="actors", lazy=True)
-    director = db.relationship('Directors', backref='director', lazy=True)
-
-    def __init__(self, movie_name, actor_id, actor_first_name, actor_last_name, director_id, director_first_name, director_last_name):
-        self.movie_name = movie_name
-        self.actor_id = actor_id
-        self.actor_first_name = actor_first_name
-        self.actor_last_name = actor_last_name
-        self.director_id = director_id
-        self.director_first_name = director_first_name
-        self.director_last_name = director_last_name
-
-class Actors(db.Model):
-    __tablename__= 'actors'
-    actor_id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
-    actor_first_name = db.Column(db.String(), nullable=False)
-    actor_last_name = db.Column(db.String(), nullable=False)
-    active = db.Column(db.Boolean(), nullable = False, default = True)
-
-    def __init__(self, actor_first_name, actor_last_name):
-        self.actor_first_name = actor_first_name
-        self.actor_last_name = actor_last_name
-
-class ActorsSchema(ma.Schema):
-    class Meta:
-        fields = ['actor_id', 'actor_first_name', 'actor_last_name', 'active']
-
-actor_schema = ActorsSchema()
-actors_schema = ActorsSchema(many=True)
-
-class Directors(db.Model):
-    __tablename__= 'directors'
-    director_id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
-    director_first_name = db.Column(db.String(), nullable=False)
-    director_last_name = db.Column(db.String(), nullable=False)
-    active = db.Column(db.Boolean(), nullable = False, default = True)
-
-    def __init__(self, director_first_name, director_last_name):
-        self.director_first_name = director_first_name
-        self.director_last_name = director_last_name
-
-class DirectorsSchema(ma.Schema):
-    class Meta:
-        fields = ['director_id', 'director_first_name', 'director_last_name', 'active']
-
-director_schema = DirectorsSchema()
-directors_schema = DirectorsSchema(many=True)
-
-class MoviesSchema(ma.Schema):
-    class Meta:
-        fields = ['movie_id', 'movie_name', 'actors', 'director', 'active']
-    actors = mar.fields.Nested(ActorsSchema(only=('actor_first_name', 'actor_last_name')))
-    director = mar.fields.Nested(DirectorsSchema(only=('director_first_name', 'director_last_name')))
-
-movie_schema = MoviesSchema()
-movies_schema = MoviesSchema(many=True)
-
 def create_all():
-    db.create_all()
+    with app.app_context():
+        db.create_all()
 
-    print("Querying for Movie...")
-    movie_data = db.session.query(Movies).filter(Movies.movie_name == "Top Gun").first()
-    if movie_data == None:
-        print("Movie not found! Creating Top Gun...")
-        actor_data = db.session.query(Actors).filter(Actors.actor_first_name == "Tom").first()
-        director_data = db.session.query(Directors).filter(Directors.director_first_name == "Tony").first()
-        if actor_data == None:
-            print("Adding Actor: Tom Cruise...")
-            actor_first_name = "Tom"
-            actor_last_name = "Cruise"
-            new_actor = Actors(actor_first_name, actor_last_name)
+        print("Querying for Movie...")
+        movie_data = db.session.query(Movies).filter(Movies.movie_name == "Top Gun").first()
+        if movie_data == None:
+            print("Movie not found! Creating Top Gun...")
+            actor_data = db.session.query(Actors).filter(Actors.actor_first_name == "Tom").first()
+            director_data = db.session.query(Directors).filter(Directors.director_first_name == "Tony").first()
+            if actor_data == None:
+                print("Adding Actor: Tom Cruise...")
+                actor_first_name = "Tom"
+                actor_last_name = "Cruise"
+                new_actor = Actors(actor_first_name, actor_last_name)
 
-            db.session.add(new_actor)
-            db.session.commit()
-            
-        if director_data == None:
-            print("Adding Director: Tony Scott...")
-            director_first_name = "Tony"
-            director_last_name = "Scott"
-            new_director = Directors(director_first_name, director_last_name)
+                db.session.add(new_actor)
+                db.session.commit()
+                
+            if director_data == None:
+                print("Adding Director: Tony Scott...")
+                director_first_name = "Tony"
+                director_last_name = "Scott"
+                new_director = Directors(director_first_name, director_last_name)
 
-            db.session.add(new_director)
-            db.session.commit()
-            
-            print("Adding Movie: Top Gun...")
-            new_movie = Movies("Top Gun", new_actor.actor_id, actor_first_name, actor_last_name, new_director.director_id, director_first_name, director_last_name)
-            db.session.add(new_movie)
-            db.session.commit()
-            print("Movie Added! Starting Application...")
+                db.session.add(new_director)
+                db.session.commit()
+                
+                print("Adding Movie: Top Gun...")
+                new_movie = Movies("Top Gun", new_actor.actor_id, actor_first_name, actor_last_name, new_director.director_id, director_first_name, director_last_name)
+                db.session.add(new_movie)
+                db.session.commit()
+                print("Movie Added! Starting Application...")
 
-    else:
-        print("Top Gun found! Starting Application...")
+        else:
+            print("Top Gun found! Starting Application...")
 
 @app.route('/actors/add', methods=['POST'])
 def add_actor():
@@ -143,7 +77,7 @@ def get_all_actors():
 def get_one_actor(actor_id):
     actor_record = db.session.query(Actors).filter(Actors.actor_id == actor_id).first()
 
-    return actor_schema.jsonify(actor_record), 200
+    return jsonify(actor_schema.dump(actor_record)), 200
 
 @app.route('/actors/edit/<actor_id>', methods=['PUT'])
 def edit_actor(actor_id):
@@ -229,7 +163,7 @@ def get_all_directors():
 def get_one_director(director_id):
     director_record = db.session.query(Directors).filter(Directors.director_id == director_id).first()
 
-    return director_schema.jsonify(director_record), 200
+    return jsonify(director_schema.dump(director_record)), 200
 
 @app.route('/directors/edit/<director_id>', methods=['PUT'])
 def edit_director(director_id):

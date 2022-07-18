@@ -1,0 +1,4 @@
+from controllers.actor_contollers import add_actor, delete_actor, get_all_actors, get_one_actor, edit_actor, delete_actor, deactivate_actor, activate_actor, actors_get_by_search
+from controllers.directors_contollers import add_director, get_all_directors, get_one_director, edit_director, delete_director, deactivate_director, activate_director, directors_get_by_search
+from controllers.movie_controllers import delete_movie, movie_add, get_all_movies, get_one_movie, edit_movie, delete_movie, deactivate_movie, activate_movie, movies_get_by_search
+from controllers.search_all_controller import get_all_by_search
